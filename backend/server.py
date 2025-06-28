@@ -5,9 +5,9 @@ from pathlib import Path
 import wave
 from google import genai
 from google.genai import types
-import soundfile as sf
+import soundfile as sf  # type:ignore
 import librosa
-import pyaudio
+import pyaudio  # type:ignore
 import os
 
 
@@ -20,20 +20,12 @@ import mss
 import argparse
 from dotenv import load_dotenv
 
-if sys.version_info < (3, 11, 0):
-    import taskgroup
-    import exceptiongroup
-
-    asyncio.TaskGroup = taskgroup.TaskGroup
-    asyncio.ExceptionGroup = exceptiongroup.ExceptionGroup
-
 
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-client = genai.Client(api_key=GEMINI_API_KEY, http_options={
-                      "api_version": "v1beta"})
+client = genai.Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1beta"})
 model = "models/gemini-2.0-flash-live-001"
 
 pya = pyaudio.PyAudio()
@@ -47,68 +39,71 @@ MODEL = "models/gemini-2.0-flash-live-001"
 DEFAULT_MODE = "camera"
 
 
-audio_config = {
-    "response_modalities": ["AUDIO"],
+audio_config: types.LiveConnectConfigDict = {
+    "response_modalities": [types.Modality.AUDIO],
     "system_instruction": "You are a helpful assistant and answer in a friendly tone.",
 }
 
-text_config = {
-    "response_modalities": ["TEXT"],
+text_config: types.LiveConnectConfigDict = {
+    "response_modalities": [types.Modality.TEXT],
     "system_instruction": "You are a helpful assistant and answer in a friendly tone.",
 }
 
 
-async def process_text(websocket, message: str) -> str:
-    """Send text to Gemini and return the generated text."""
+async def process_text(websocket, message: str):
     async with client.aio.live.connect(model=model, config=text_config) as session:
         await session.send_client_content(
             turns={"role": "user", "parts": [{"text": message}]}, turn_complete=True
         )
         async for response in session.receive():
-            # print(f"Received response: {response}")
+            print(f"Received response: {response}")
             if response.text is not None:
-                # print(response.text, end="")
+                print(response.text, end="")
                 await websocket.send(f"{response.text}")
-            if response.server_content.turn_complete:
+            if (
+                response.server_content is not None
+                and response.server_content.turn_complete
+            ):
                 await websocket.send(f"Response Complete")
 
 
-async def process_audio_to_text(websocket, audio_bytes: bytes) -> str:
+async def process_audio_to_text(websocket, audio_bytes: bytes):
     """Send audio to Gemini and return the generated text."""
     buffer = io.BytesIO(audio_bytes)
-    y, sr = sf.read(buffer, dtype='int16')
+    y, sr = sf.read(buffer, dtype="int16")
 
     out_buffer = io.BytesIO()
-    sf.write(out_buffer, y, sr, format='RAW', subtype='PCM_16')
+    sf.write(out_buffer, y, sr, format="RAW", subtype="PCM_16")
     out_buffer.seek(0)
 
     async with client.aio.live.connect(model=model, config=text_config) as session:
         await session.send_realtime_input(
-            audio=types.Blob(data=out_buffer.read(),
-                             mime_type="audio/pcm;rate=16000")
+            audio=types.Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
         )
         async for response in session.receive():
             # print(f"Received response: {response}")
             if response.text is not None:
                 # print(response.text, end="")
                 await websocket.send(f"{response.text}")
-            if response.server_content.turn_complete:
+            if (
+                response.server_content is not None
+                and response.server_content.turn_complete
+            ):
                 await websocket.send(f"Response Complete")
 
 
 async def process_audio(audio_bytes: bytes) -> bytes:
     """Send audio to Gemini and return the generated audio."""
     buffer = io.BytesIO(audio_bytes)
-    y, sr = sf.read(buffer, dtype='int16')
+    y, sr = sf.read(buffer, dtype="int16")
 
     out_buffer = io.BytesIO()
-    sf.write(out_buffer, y, sr, format='RAW', subtype='PCM_16')
+    sf.write(out_buffer, y, sr, format="RAW", subtype="PCM_16")
     out_buffer.seek(0)
 
     async with client.aio.live.connect(model=model, config=audio_config) as session:
         await session.send_realtime_input(
-            audio=types.Blob(data=out_buffer.read(),
-                             mime_type="audio/pcm;rate=16000")
+            audio=types.Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
         )
 
         response_audio = io.BytesIO()
@@ -149,6 +144,7 @@ async def main():
     async with websockets.serve(handler, host, port):
         print(f"WebSocket server started on ws://{host}:{port}")
         await asyncio.Future()  # Run forever until interrupted
+
 
 if __name__ == "__main__":
     try:
