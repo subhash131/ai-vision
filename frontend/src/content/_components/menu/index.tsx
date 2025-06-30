@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const Menu = ({ isActive }: { isActive: boolean }) => {
   return (
     <div className="flex-[0.15] size-full flex flex-col items-end justify-end">
-      <div className="size-full min-h-96"></div>
+      <div className="size-full"></div>
       <div className="flex flex-col gap-1 h-fit">
         <div
           className={cn(
