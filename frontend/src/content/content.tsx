@@ -6,7 +6,7 @@ import { useAppContext } from "@/providers/state-context-provider";
 import EventListener from "./_components/event-listener";
 
 const Content = () => {
-  const { isActive, setIsActive } = useAppContext();
+  const { isActive, setIsActive, isPinned } = useAppContext();
 
   return (
     <div className="size-full flex flex-row-reverse !text-white">
@@ -18,7 +18,9 @@ const Content = () => {
             isActive && "h-full w-[30rem]"
           )}
           onMouseEnter={() => setIsActive(true)}
-          onMouseLeave={() => setIsActive(false)}
+          onMouseLeave={() => {
+            if (!isPinned) setIsActive(false);
+          }}
         >
           <Chat isActive={isActive} />
           <Menu isActive={isActive} />

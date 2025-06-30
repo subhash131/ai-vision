@@ -129,6 +129,7 @@ async def handler(websocket, path=None):
                 await process_audio_to_text(websocket, message)
                 print("Sent Gemini response audio to client")
             else:
+                print("Received text ", message)
                 await process_text(websocket, message)
 
     except websockets.ConnectionClosed:
