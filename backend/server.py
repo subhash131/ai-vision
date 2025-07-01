@@ -4,11 +4,20 @@ import io
 from pathlib import Path
 import wave
 from google import genai
-from google.genai import types
+from google.genai.types import (
+    LiveConnectConfigDict,
+    Modality,
+    Content,
+    ContentDict,
+    Blob,
+)
 import soundfile as sf  # type:ignore
 import librosa
 import pyaudio  # type:ignore
 import os
+
+
+from .types import Chats, Message
 
 
 import sys
@@ -26,7 +35,6 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 client = genai.Client(api_key=GEMINI_API_KEY, http_options={"api_version": "v1beta"})
-model = "models/gemini-2.0-flash-live-001"
 
 pya = pyaudio.PyAudio()
 
@@ -39,26 +47,60 @@ MODEL = "models/gemini-2.0-flash-live-001"
 DEFAULT_MODE = "camera"
 
 
-audio_config: types.LiveConnectConfigDict = {
-    "response_modalities": [types.Modality.AUDIO],
+audio_config: LiveConnectConfigDict = {
+    "response_modalities": [Modality.AUDIO],
     "system_instruction": "You are a helpful assistant and answer in a friendly tone.",
 }
 
-text_config: types.LiveConnectConfigDict = {
-    "response_modalities": [types.Modality.TEXT],
+text_config: LiveConnectConfigDict = {
+    "response_modalities": [Modality.TEXT],
     "system_instruction": "You are a helpful assistant and answer in a friendly tone.",
+    "context_window_compression": {
+        "sliding_window": {"target_tokens": 10000},
+    },
+}
+
+
+default_message: Message = {
+    "role": "user",
+    "parts": [
+        {
+            "text": "You are a helpful assistant and answer in a friendly tone. your response should be less than 50 words. Explain in detail only if the user asks."
+        }
+    ],
+}
+
+
+chats: Chats = {
+    "chat1": [
+        {
+            "parts": [
+                {
+                    "text": "You are a helpful assistant and answer in a friendly tone. your response should be less than 50 words. Explain in detail only if the user asks."
+                }
+            ],
+            "role": "user",
+        },
+        {
+            "parts": [{"text": "My name is subhash"}],
+            "role": "user",
+        },
+    ]
 }
 
 
 async def process_text(websocket, message: str):
-    async with client.aio.live.connect(model=model, config=text_config) as session:
+    async with client.aio.live.connect(
+        model=MODEL,
+        config=text_config,
+    ) as session:
         await session.send_client_content(
-            turns={"role": "user", "parts": [{"text": message}]}, turn_complete=True
+            turns=[chats["chat1"][0], {"role": "user", "parts": [{"text": message}]}],
+            turn_complete=True,
         )
         async for response in session.receive():
-            print(f"Received response: {response}")
             if response.text is not None:
-                print(response.text, end="")
+                print("response ::", response.text, end="")
                 await websocket.send(f"{response.text}")
             if (
                 response.server_content is not None
@@ -76,9 +118,9 @@ async def process_audio_to_text(websocket, audio_bytes: bytes):
     sf.write(out_buffer, y, sr, format="RAW", subtype="PCM_16")
     out_buffer.seek(0)
 
-    async with client.aio.live.connect(model=model, config=text_config) as session:
+    async with client.aio.live.connect(model=MODEL, config=text_config) as session:
         await session.send_realtime_input(
-            audio=types.Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
+            audio=Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
         )
         async for response in session.receive():
             # print(f"Received response: {response}")
@@ -101,9 +143,9 @@ async def process_audio(audio_bytes: bytes) -> bytes:
     sf.write(out_buffer, y, sr, format="RAW", subtype="PCM_16")
     out_buffer.seek(0)
 
-    async with client.aio.live.connect(model=model, config=audio_config) as session:
+    async with client.aio.live.connect(model=MODEL, config=audio_config) as session:
         await session.send_realtime_input(
-            audio=types.Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
+            audio=Blob(data=out_buffer.read(), mime_type="audio/pcm;rate=16000")
         )
 
         response_audio = io.BytesIO()
@@ -122,6 +164,9 @@ async def process_audio(audio_bytes: bytes) -> bytes:
 
 async def handler(websocket, path=None):
     print(f"Client connected: {websocket.remote_address}")
+    clientId = websocket.remote_address
+    # chats.update({clientId: [default_message]})
+
     try:
         async for message in websocket:
             if isinstance(message, bytes):
