@@ -19,10 +19,11 @@ const Chat = ({ isActive }: { isActive: boolean }) => {
     <div className="flex-[0.85] h-full flex flex-col items-end justify-end transition-all gap-1">
       <div
         className={cn(
-          "w-0 h-0 flex !border !border-[#575757] opacity-0 delay-300 transition-all !bg-[#1a1616] rounded-2xl overflow-hidden",
+          "w-0 h-0 flex !border !border-[#575757] opacity-0 delay-300 transition-all rounded-2xl overflow-hidden !bg-transparent relative",
           isActive && "w-full h-full opacity-100"
         )}
       >
+        <div className="absolute top-0 left-0 size-full !bg-[#1a1616] opacity-40 -z-10"></div>
         <div
           className="w-full h-full overflow-y-scroll hide-scrollbar p-2 flex flex-col text-xs pb-40 gap-1"
           ref={containerRef}

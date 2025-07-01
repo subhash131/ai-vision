@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import "@/popup/index.css";
 import Chat from "./_components/chat";
 import Menu from "./_components/menu";
 import { useAppContext } from "@/providers/state-context-provider";
